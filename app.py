@@ -43,21 +43,20 @@ def add_bg_from_local(image_file):
             """,
             unsafe_allow_html=True
         )
-    except FileNotFoundError:
-        st.warning("Archivo 'fondo_anime.jpg' no encontrado.")
+    except Exception:
+        st.warning("Asegúrate de tener el archivo 'fondo_anime.jpg' en tu repositorio.")
 
 add_bg_from_local('fondo_anime.jpg')
 
 # --- 3. CONFIGURACIÓN DE LA API (PRIVADA) ---
-# Se obtiene la clave desde los Secrets de Streamlit para mayor seguridad
 API_KEY = os.getenv("GEMINI_API_KEY")
 
+if not API_KEY:
+    st.error("⚠️ Configura 'GEMINI_API_KEY' en los Secrets de Streamlit.")
+    st.stop()
+
 try:
-    if not API_KEY:
-        st.error("⚠️ Configura 'GEMINI_API_KEY' en los Secrets de Streamlit.")
-        st.stop()
-    else:
-        client = genai.Client(api_key=API_KEY)
+    client = genai.Client(api_key=API_KEY)
 except Exception as e:
     st.error(f"Error de inicialización: {e}")
 
@@ -80,4 +79,35 @@ if "messages" not in st.session_state:
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.
+        st.markdown(message["content"])
+
+# --- 6. EL "BRAZO ROBÓTICO": SOLICITUD CON RESPALDO ---
+if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+        instruccion = f"Tu nombre es {nombre_ia}. Actúa como {personalidad}. Usuario dice: "
+        
+        try:
+            # Intento 1: Gemini 2.0 Flash
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", 
+                contents=instruccion + prompt
+            )
+            respuesta = response.text
+        except Exception:
+            st.info("🔄 Reintentando con servidor de respaldo...")
+            try:
+                # Intento 2: Gemini 1.5 Flash
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash", 
+                    contents=instruccion + prompt
+                )
+                respuesta = response.text
+            except Exception as e_final:
+                respuesta = f"❌ Error crítico: {e_final}"
+
+        st.markdown(respuesta)
+        st.session_state.messages.append({"role": "assistant", "content": respuesta})
