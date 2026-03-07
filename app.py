@@ -1,7 +1,7 @@
 import streamlit as st
-import google.generativeai as genai  # Cambio en la importación para compatibilidad estándar
+from google import genai
 import base64
-import os  # Importante para leer la API KEY de forma segura
+import os  # Librería necesaria para leer la clave privada
 
 # --- 1. CONFIGURACIÓN DE LA INTERFAZ ---
 st.set_page_config(page_title="Asistente IA - Joel Muñoz", layout="wide", page_icon="💻")
@@ -44,24 +44,22 @@ def add_bg_from_local(image_file):
             unsafe_allow_html=True
         )
     except FileNotFoundError:
-        st.warning("Archivo de imagen no encontrado. Verifica el nombre del archivo.")
+        st.warning("Archivo de imagen no encontrado.")
 
-# Llama a la función con el nombre exacto de tu archivo
 add_bg_from_local('fondo_anime.jpg')
 
-# --- 3. CONFIGURACIÓN DE LA API (SEGURA) ---
-# Aquí ya no pegamos la clave directamente. La obtenemos del sistema.
+# --- 3. CONFIGURACIÓN DE LA API (MODO PRIVADO) ---
+# Aquí obtenemos la clave desde los Secrets de Streamlit
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
-    st.error("No se encontró la API KEY. Configúrala en los Secrets de Streamlit.")
-else:
-    try:
-        genai.configure(api_key=API_KEY)
-        # Usamos el cliente estándar de la librería
-        model_main = genai.GenerativeModel('gemini-1.5-flash') # Modelo principal
-    except Exception as e:
-        st.error(f"Error de inicialización: {e}")
+    st.error("⚠️ Configura la 'GEMINI_API_KEY' en los Secrets de Streamlit para que funcione.")
+    st.stop()
+
+try:
+    client = genai.Client(api_key=API_KEY)
+except Exception as e:
+    st.error(f"Error de inicialización: {e}")
 
 # --- 4. DISEÑO DE CABECERA ---
 st.title("🤖 Mi Asistente Limon")
@@ -84,21 +82,33 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 6. PETICIÓN A LA IA ---
+# --- 6. EL "BRAZO ROBÓTICO": SOLICITUD CON RESPALDO ---
 if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        contexto_completo = f"Tu nombre es {nombre_ia}. Personalidad: {personalidad}. Usuario: {prompt}"
+        instruccion = f"Tu nombre es {nombre_ia}. Actúa como {personalidad}. Usuario dice: "
         
         try:
-            # Intento con el modelo configurado
-            response = model_main.generate_content(contexto_completo)
+            # INTENTO 1: Gemini 3
+            response = client.models.generate_content(
+                model="gemini-2.0-flash", # Ajustado a un modelo estable disponible
+                contents=instruccion + prompt
+            )
             respuesta = response.text
         except Exception as e:
-            respuesta = f"❌ Error al conectar con Gemini: {e}"
+            # INTENTO 2: Respaldo (Failover)
+            st.info("🔄 Conectando con servidor de respaldo...")
+            try:
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash", 
+                    contents=instruccion + prompt
+                )
+                respuesta = response.text
+            except Exception as e_final:
+                respuesta = f"❌ Error crítico: {e_final}"
 
         st.markdown(respuesta)
         st.session_state.messages.append({"role": "assistant", "content": respuesta})
