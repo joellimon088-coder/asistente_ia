@@ -1,7 +1,7 @@
 import streamlit as st
 from google import genai
 import base64
-import os  # Librería necesaria para leer la clave privada
+import os  # <-- Importamos la librería para manejar el entorno
 
 # --- 1. CONFIGURACIÓN DE LA INTERFAZ ---
 st.set_page_config(page_title="Asistente IA - Joel Muñoz", layout="wide", page_icon="💻")
@@ -44,20 +44,19 @@ def add_bg_from_local(image_file):
             unsafe_allow_html=True
         )
     except FileNotFoundError:
-        st.warning("Archivo de imagen no encontrado.")
+        st.warning("Archivo 'fondo_anime.jpg' no encontrado.")
 
 add_bg_from_local('fondo_anime.jpg')
 
-# --- 3. CONFIGURACIÓN DE LA API (MODO PRIVADO) ---
+# --- 3. CONFIGURACIÓN DE LA API (AHORA PRIVADA) ---
 # Aquí obtenemos la clave desde los Secrets de Streamlit
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not API_KEY:
-    st.error("⚠️ Configura la 'GEMINI_API_KEY' en los Secrets de Streamlit para que funcione.")
-    st.stop()
-
 try:
-    client = genai.Client(api_key=API_KEY)
+    if not API_KEY:
+        st.error("⚠️ No se encontró la API_KEY. Agrégala en los Secrets de Streamlit.")
+    else:
+        client = genai.Client(api_key=API_KEY)
 except Exception as e:
     st.error(f"Error de inicialización: {e}")
 
@@ -92,14 +91,14 @@ if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
         instruccion = f"Tu nombre es {nombre_ia}. Actúa como {personalidad}. Usuario dice: "
         
         try:
-            # INTENTO 1: Gemini 3
+            # INTENTO 1: Modelo Principal
             response = client.models.generate_content(
-                model="gemini-2.0-flash", # Ajustado a un modelo estable disponible
+                model="gemini-2.0-flash", 
                 contents=instruccion + prompt
             )
             respuesta = response.text
         except Exception as e:
-            # INTENTO 2: Respaldo (Failover)
+            # INTENTO 2: Respaldo
             st.info("🔄 Conectando con servidor de respaldo...")
             try:
                 response = client.models.generate_content(
@@ -108,7 +107,7 @@ if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
                 )
                 respuesta = response.text
             except Exception as e_final:
-                respuesta = f"❌ Error crítico: {e_final}"
+                respuesta = f"❌ Error crítico en ambos servidores: {e_final}"
 
         st.markdown(respuesta)
         st.session_state.messages.append({"role": "assistant", "content": respuesta})
