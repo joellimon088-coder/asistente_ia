@@ -69,7 +69,7 @@ st.divider()
 with st.sidebar:
     st.header("⚙️ Panel de Control")
     nombre_ia = st.text_input("Nombre de la IA:", value="Cacho ia")
-    personalidad = st.text_area("Personalidad:", value="Eres un asistente experto en programación y hardware.")
+    personalidad = st.text_area("Personalidad:", value="Eres un personaje de anime .")
     if st.button("Limpiar Chat"):
         st.session_state.messages = []
         st.rerun()
@@ -113,3 +113,4 @@ if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
 
         st.markdown(respuesta)
         st.session_state.messages.append({"role": "assistant", "content": respuesta})
+
