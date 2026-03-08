@@ -82,7 +82,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 6. EL "BRAZO ROBÓTICO": SOLICITUD CON RESPALDO (FAILOVER) ---
+# --- 6. EL "BRAZO ROBÓTICO" CON CASCADA (FAILOVER) ---
 if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -91,26 +91,28 @@ if prompt := st.chat_input("Escribe tu duda técnica aquí, Joel..."):
     with st.chat_message("assistant"):
         instruccion = f"Tu nombre es {nombre_ia}. Actúa como {personalidad}. Usuario dice: "
         
-        try:
-            # INTENTO 1: Modelo Experimental
-            response = client.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=instruccion + prompt
-            )
-            respuesta = response.text
+        # Lista de modelos en orden de prioridad
+        modelos_disponibles = ["gemini-3-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
+        respuesta = ""
+        exito = False
 
-        except Exception:
-            # INTENTO 2: Respaldo
-            st.info("🔄 El servidor principal está saturado. Conectando con servidor de respaldo...")
+        for modelo_actual in modelos_disponibles:
             try:
+                # Intentamos generar contenido con el modelo actual
                 response = client.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model=modelo_actual,
                     contents=instruccion + prompt
                 )
                 respuesta = response.text
-            except Exception as e_final:
-                respuesta = f"❌ Error crítico en ambos servidores: {e_final}"
+                exito = True
+                break  # Si funciona, salimos del ciclo for
+            except Exception:
+                # Si falla (por cuota agotada o error), avisamos y pasamos al siguiente
+                st.warning(f"⚠️ El modelo {modelo_actual} no está disponible. Intentando con el siguiente...")
+                continue
+
+        if not exito:
+            respuesta = "❌ Lo siento Joel, parece que agotamos las 20 consultas en TODOS los modelos por hoy."
 
         st.markdown(respuesta)
         st.session_state.messages.append({"role": "assistant", "content": respuesta})
-
